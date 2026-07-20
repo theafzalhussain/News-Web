@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Menu, X, Globe, Radio } from "lucide-react"
+import { Search, X, Globe, Radio } from "lucide-react"
 import { CATEGORIES, STRINGS, type Lang } from "@/lib/i18n"
 
 interface NavbarProps {
@@ -109,17 +109,17 @@ export function Navbar({ lang, category, query, onCategoryChange, onLangChange, 
           <button
             onClick={() => setMobileOpen((o) => !o)}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground md:hidden"
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileOpen ? "Close search" : "Open search"}
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {mobileOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
           </button>
         </div>
       </div>
 
-      {/* Category bar (desktop) */}
-      <nav className="hidden border-t border-border md:block" aria-label="News categories">
-        <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 md:px-6">
+      {/* Category bar — scrollable on all screens */}
+      <nav className="border-t border-border" aria-label="News categories">
+        <div className="scrollbar-hide mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 md:px-6">
           {CATEGORIES.map((cat) => {
             const active = category === cat.key && !query
             return (
@@ -129,7 +129,7 @@ export function Navbar({ lang, category, query, onCategoryChange, onLangChange, 
                   onSearch("")
                   onCategoryChange(cat.key)
                 }}
-                className={`relative whitespace-nowrap px-4 py-3 text-sm transition-colors ${
+                className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] transition-colors md:px-4 md:py-3 md:text-sm ${
                   active ? "font-semibold text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
                 aria-current={active ? "page" : undefined}
@@ -176,27 +176,21 @@ export function Navbar({ lang, category, query, onCategoryChange, onLangChange, 
                   className="w-full rounded-full border border-border bg-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                {CATEGORIES.map((cat) => {
-                  const active = category === cat.key && !query
-                  return (
-                    <button
-                      key={cat.key}
-                      onClick={() => {
-                        onSearch("")
-                        onCategoryChange(cat.key)
-                        setMobileOpen(false)
-                      }}
-                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-                        active
-                          ? "border-primary bg-primary text-primary-foreground font-semibold"
-                          : "border-border bg-secondary text-muted-foreground"
-                      }`}
-                    >
-                      {cat[lang]}
-                    </button>
-                  )
-                })}
+              <div className="flex items-center justify-between pt-1">
+                <span className="flex items-center gap-1.5 rounded-full border border-destructive/50 px-3 py-1 text-xs font-semibold text-destructive">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+                  </span>
+                  {t.live}
+                </span>
+                <button
+                  onClick={submitSearch}
+                  className="rounded-full bg-primary px-5 py-1.5 text-xs font-bold text-primary-foreground"
+                >
+                  <Search className="mr-1.5 inline h-3 w-3" aria-hidden="true" />
+                  {lang === "hi" ? "खोजें" : "Search"}
+                </button>
               </div>
             </div>
           </motion.nav>
