@@ -95,7 +95,7 @@ const CATEGORY_QUERIES: Record<string, { en: string; hi: string }> = {
 // ---------------------------------------------------------------------------
 function decodeEntities(s: string): string {
   return s
-    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
