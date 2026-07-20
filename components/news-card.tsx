@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Calendar, ArrowUpRight, Play } from "lucide-react"
+import { ArticleImage } from "@/components/article-image"
 import { formatDate, STRINGS, type Article, type Lang } from "@/lib/i18n"
 
 interface NewsCardProps {
@@ -19,26 +20,19 @@ export function NewsCard({ article, lang, index }: NewsCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, delay: (index % 3) * 0.08 }}
+      style={{ contentVisibility: "auto", containIntrinsicSize: "420px" }}
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-[0_8px_40px_-12px] hover:shadow-primary/20"
     >
       {/* Image */}
       <div className="relative aspect-[16/9] overflow-hidden bg-secondary">
-        {article.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={article.image}
-            alt={article.title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={(e) => {
-              ;(e.target as HTMLImageElement).style.display = "none"
-            }}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-serif text-4xl text-muted-foreground">
-            {t.brand.charAt(0)}
-          </div>
-        )}
+        <ArticleImage
+          src={article.image}
+          alt={article.title}
+          fallbackText={t.brand.charAt(0)}
+          eager={index < 3}
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
         <span className="absolute left-3 top-3 rounded-full bg-background/80 px-3 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
           {article.source?.name}
         </span>

@@ -26,19 +26,28 @@ interface FeedResult {
 // ---------------------------------------------------------------------------
 const FRESH_TTL = 10 * 60 * 1000
 const STALE_TTL = 24 * 60 * 60 * 1000
+const UPSTREAM_TIMEOUT_MS = 4500
 
 interface CacheEntry {
   ts: number
   data: FeedResult
 }
 
-const globalCache = globalThis as unknown as { __newsCache?: Map<string, CacheEntry> }
+const globalCache = globalThis as unknown as {
+  __newsCache?: Map<string, CacheEntry>
+  __newsInflight?: Map<string, Promise<FeedResult | null>>
+}
 const cache = (globalCache.__newsCache ??= new Map<string, CacheEntry>())
+const inflight = (globalCache.__newsInflight ??= new Map<string, Promise<FeedResult | null>>())
 
 function getCache(key: string, maxAge: number): FeedResult | null {
   const entry = cache.get(key)
   if (entry && Date.now() - entry.ts < maxAge) return entry.data
   return null
+}
+
+function upstreamSignal() {
+  return AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
 }
 
 function setCache(key: string, data: FeedResult) {
@@ -95,7 +104,7 @@ const CATEGORY_QUERIES: Record<string, { en: string; hi: string }> = {
 // ---------------------------------------------------------------------------
 function decodeEntities(s: string): string {
   return s
-    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -106,7 +115,7 @@ function decodeEntities(s: string): string {
 }
 
 function stripHtml(s: string): string {
-  return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim()
+  return decodeEntities(s).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
 }
 
 function tag(block: string, name: string): string {
@@ -150,7 +159,7 @@ async function fetchGNews(
   }
 
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, { signal: upstreamSignal(), next: { revalidate: 300 } })
     if (!res.ok) return null
     const data = await res.json()
     if (!Array.isArray(data?.articles) || data.articles.length === 0) return null
@@ -203,7 +212,7 @@ async function fetchBing(query: string): Promise<Article[]> {
   try {
     const res = await fetch(
       `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&count=30`,
-      { headers: { "User-Agent": UA }, next: { revalidate: 600 } },
+      { headers: { "User-Agent": UA }, signal: upstreamSignal(), next: { revalidate: 600 } },
     )
     if (!res.ok) return []
     return parseBing(await res.text())
@@ -265,6 +274,7 @@ async function fetchGoogle(category: string, lang: string, q: string): Promise<A
     const res = await fetch(url, {
       headers: { "User-Agent": UA },
       redirect: "follow",
+      signal: upstreamSignal(),
       next: { revalidate: 600 },
     })
     if (!res.ok) return []
@@ -315,65 +325,70 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // 2. GNews primary (only page 1 on most free plans; deeper pages go to RSS)
-  const apiKey = process.env.GNEWS_API_KEY
-  if (apiKey && page === 1) {
-    const gnews = await fetchGNews(category, lang, q, page, apiKey)
-    if (gnews) {
-      // Don't mark end-of-feed: RSS continues pagination beyond GNews page 1
-      const result = { ...gnews, endOfFeed: false }
-      setCache(cacheKey, result)
-      return NextResponse.json(result, {
-        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
-      })
-    }
-  }
+  const loadFeed = async (): Promise<FeedResult | null> => {
+    let rssArticles = getCache(rssKey, FRESH_TTL)?.articles ?? null
 
-  // 3. RSS fallback — fetch full list once, cache it, paginate server-side
-  let rssArticles = getCache(rssKey, FRESH_TTL)?.articles ?? null
+    const rssPromise = rssArticles
+      ? Promise.resolve(rssArticles)
+      : (async () => {
+          const [bing, google] = await Promise.all([
+            lang === "en" ? fetchBing(bingQuery(category, q)) : Promise.resolve([]),
+            fetchGoogle(category, lang, q),
+          ])
+          const collected: Article[] = []
+          const seen = new Set<string>()
+          for (const article of [...bing, ...google]) {
+            const key = article.title.toLowerCase().replace(/\s+/g, " ").slice(0, 80)
+            if (!article.url || seen.has(key)) continue
+            seen.add(key)
+            collected.push(article)
+          }
+          if (collected.length) {
+            setCache(rssKey, { totalArticles: collected.length, articles: collected })
+          }
+          return collected
+        })()
 
-  if (!rssArticles) {
-    const collected: Article[] = []
+    const apiKey = process.env.GNEWS_API_KEY
+    const gnewsPromise = apiKey && page === 1
+      ? fetchGNews(category, lang, q, page, apiKey)
+      : Promise.resolve(null)
 
-    // English: Bing first (has images)
-    if (lang === "en") {
-      collected.push(...(await fetchBing(bingQuery(category, q))))
-    }
+    const [gnews, rss] = await Promise.all([gnewsPromise, rssPromise])
+    rssArticles = rss
 
-    // Google News RSS (both langs; merged after Bing)
-    const google = await fetchGoogle(category, lang, q)
-    const seen = new Set(collected.map((a) => a.title.toLowerCase().slice(0, 60)))
-    for (const a of google) {
-      const k = a.title.toLowerCase().slice(0, 60)
-      if (!seen.has(k)) {
-        seen.add(k)
-        collected.push(a)
+    if (page === 1 && gnews?.articles.length) {
+      const seen = new Set(gnews.articles.map((article) => article.url))
+      const merged = [...gnews.articles]
+      for (const article of rssArticles) {
+        if (!seen.has(article.url) && merged.length < PAGE_SIZE) merged.push(article)
       }
+      return { totalArticles: Math.max(gnews.totalArticles, rssArticles.length), articles: merged, endOfFeed: false }
     }
 
-    if (collected.length > 0) {
-      rssArticles = collected
-      setCache(rssKey, { totalArticles: collected.length, articles: collected })
-    }
+    return rssArticles.length ? paginate(rssArticles, page) : null
   }
 
-  if (rssArticles && rssArticles.length > 0) {
-    // When GNews served page 1, offset RSS pagination so content continues
-    const result = paginate(rssArticles, page)
+  let pending = inflight.get(cacheKey)
+  if (!pending) {
+    pending = loadFeed().finally(() => inflight.delete(cacheKey))
+    inflight.set(cacheKey, pending)
+  }
+  const result = await pending
+
+  if (result) {
     setCache(cacheKey, result)
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400" },
     })
   }
 
-  // 4. Serve stale cache if everything failed
   const stale = getCache(cacheKey, STALE_TTL) ?? getCache(rssKey, STALE_TTL)
   if (stale) {
-    return NextResponse.json(stale)
+    return NextResponse.json(stale, {
+      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=86400" },
+    })
   }
 
-  return NextResponse.json(
-    { error: "Could not load news from any source" },
-    { status: 502 },
-  )
+  return NextResponse.json({ error: "Could not load news from any source" }, { status: 502 })
 }

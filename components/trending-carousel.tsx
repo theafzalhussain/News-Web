@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { TrendingUp, ArrowUpRight, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react"
+import { ArticleImage } from "@/components/article-image"
 import { formatDate, STRINGS, type Article, type Lang } from "@/lib/i18n"
 
 interface TrendingCarouselProps {
@@ -106,24 +107,14 @@ export function TrendingCarousel({ articles, lang }: TrendingCarouselProps) {
             >
               {/* Image */}
               <div className="absolute inset-0 bg-secondary">
-                {article.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={article.image}
-                    alt=""
-                    fetchPriority={index === 0 ? "high" : "auto"}
-                    className="h-full w-full scale-105 object-cover transition-transform duration-[7000ms] ease-out group-hover/carousel:scale-110"
-                    onError={(e) => {
-                      ;(e.target as HTMLImageElement).style.display = "none"
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-secondary">
-                    <span className="select-none font-serif text-[8rem] font-bold text-border md:text-[14rem]">
-                      {t.brand.charAt(0)}
-                    </span>
-                  </div>
-                )}
+                <ArticleImage
+                  src={article.image}
+                  alt=""
+                  fallbackText={t.brand.charAt(0)}
+                  eager
+                  sizes="(min-width: 1280px) 1280px, 100vw"
+                  className="h-full w-full scale-105 object-cover transition-transform duration-[7000ms] ease-out group-hover/carousel:scale-110"
+                />
               </div>
 
               {/* Overlay gradient */}

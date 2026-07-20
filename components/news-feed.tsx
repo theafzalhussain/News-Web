@@ -13,7 +13,11 @@ interface FeedPage {
   error?: string
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = async (url: string) => {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`News request failed: ${response.status}`)
+  return response.json()
+}
 
 interface NewsFeedProps {
   lang: Lang
@@ -25,6 +29,7 @@ interface NewsFeedProps {
 export function NewsFeed({ lang, category, query, onFirstPage }: NewsFeedProps) {
   const t = STRINGS[lang]
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const requestingNextRef = useRef(false)
 
   const getKey = (pageIndex: number, previousPageData: FeedPage | null) => {
     if (previousPageData && (previousPageData.endOfFeed || !previousPageData.articles?.length)) {
@@ -41,7 +46,13 @@ export function NewsFeed({ lang, category, query, onFirstPage }: NewsFeedProps) 
   const { data, error, size, setSize, isValidating, isLoading } = useSWRInfinite<FeedPage>(
     getKey,
     fetcher,
-    { revalidateFirstPage: false, revalidateOnFocus: false },
+    {
+      revalidateFirstPage: false,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      keepPreviousData: true,
+      dedupingInterval: 5 * 60 * 1000,
+    },
   )
 
   // Dedupe articles across pages by URL
@@ -76,6 +87,10 @@ export function NewsFeed({ lang, category, query, onFirstPage }: NewsFeedProps) 
 
   const isLoadingMore = isValidating && size > 1
 
+  useEffect(() => {
+    if (!isValidating) requestingNextRef.current = false
+  }, [isValidating, data])
+
   // Infinite scroll observer
   useEffect(() => {
     if (reachedEnd) return
@@ -83,11 +98,12 @@ export function NewsFeed({ lang, category, query, onFirstPage }: NewsFeedProps) 
     if (!el) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isValidating) {
+        if (entries[0].isIntersecting && !isValidating && !requestingNextRef.current) {
+          requestingNextRef.current = true
           setSize((s) => s + 1)
         }
       },
-      { rootMargin: "600px" },
+      { rootMargin: "1000px 0px" },
     )
     observer.observe(el)
     return () => observer.disconnect()

@@ -8,6 +8,7 @@ interface ArticleImageProps {
   className?: string
   fallbackText?: string
   eager?: boolean
+  sizes?: string
 }
 
 /**
@@ -16,7 +17,14 @@ interface ArticleImageProps {
  *   used by many news CDNs (e.g. TVC News).
  * - Branded serif fallback if the image is missing or fails to load.
  */
-export function ArticleImage({ src, alt, className, fallbackText = "T", eager = false }: ArticleImageProps) {
+export function ArticleImage({
+  src,
+  alt,
+  className,
+  fallbackText = "T",
+  eager = false,
+  sizes,
+}: ArticleImageProps) {
   const [failed, setFailed] = useState(false)
 
   if (!src || failed) {
@@ -32,7 +40,12 @@ export function ArticleImage({ src, alt, className, fallbackText = "T", eager = 
     <img
       src={src || "/placeholder.svg"}
       alt={alt}
+      width={800}
+      height={450}
+      sizes={sizes}
       loading={eager ? "eager" : "lazy"}
+      fetchPriority={eager ? "high" : "auto"}
+      decoding="async"
       referrerPolicy="no-referrer"
       className={className}
       onError={() => setFailed(true)}

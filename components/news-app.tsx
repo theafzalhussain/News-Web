@@ -1,13 +1,17 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import useSWR from "swr"
+import useSWR, { preload } from "swr"
 import { Navbar } from "@/components/navbar"
 import { TrendingCarousel } from "@/components/trending-carousel"
 import { NewsFeed } from "@/components/news-feed"
 import { STRINGS, type Article, type Lang } from "@/lib/i18n"
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = async (url: string) => {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`News request failed: ${response.status}`)
+  return response.json()
+}
 
 export function NewsApp() {
   const [lang, setLang] = useState<Lang>("en")
@@ -27,11 +31,18 @@ export function NewsApp() {
     },
   )
 
+  const prefetchCategory = useCallback(
+    (cat: string) => {
+      preload(`/api/news?lang=${lang}&page=1&category=${cat}`, fetcher)
+    },
+    [lang],
+  )
+
   const handleCategoryChange = useCallback((cat: string) => {
+    prefetchCategory(cat)
     setCategory(cat)
-    // Scroll back to top for a fresh feed
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
-  }, [])
+  }, [prefetchCategory])
 
   const showTrending = !query
 
@@ -42,6 +53,7 @@ export function NewsApp() {
         category={category}
         query={query}
         onCategoryChange={handleCategoryChange}
+        onCategoryPrefetch={prefetchCategory}
         onLangChange={setLang}
         onSearch={setQuery}
       />

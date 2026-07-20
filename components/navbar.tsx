@@ -10,11 +10,20 @@ interface NavbarProps {
   category: string
   query: string
   onCategoryChange: (cat: string) => void
+  onCategoryPrefetch?: (cat: string) => void
   onLangChange: (lang: Lang) => void
   onSearch: (q: string) => void
 }
 
-export function Navbar({ lang, category, query, onCategoryChange, onLangChange, onSearch }: NavbarProps) {
+export function Navbar({
+  lang,
+  category,
+  query,
+  onCategoryChange,
+  onCategoryPrefetch,
+  onLangChange,
+  onSearch,
+}: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchValue, setSearchValue] = useState(query)
   const t = STRINGS[lang]
@@ -129,6 +138,8 @@ export function Navbar({ lang, category, query, onCategoryChange, onLangChange, 
                   onSearch("")
                   onCategoryChange(cat.key)
                 }}
+                onPointerEnter={() => onCategoryPrefetch?.(cat.key)}
+                onFocus={() => onCategoryPrefetch?.(cat.key)}
                 className={`relative shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] transition-colors md:px-4 md:py-3 md:text-sm ${
                   active ? "font-semibold text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
