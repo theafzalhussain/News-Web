@@ -193,13 +193,7 @@ function parseBing(xml: string): Article[] {
     const pub = tag(item, "pubDate")
     const source = decodeEntities(tag(item, "News:Source")) || "Bing News"
     let image: string | null = decodeEntities(tag(item, "News:Image")) || null
-    if (image) {
-      // Bing serves image URLs over insecure http:// which fails and is blocked
-      // as mixed content on https sites. Force https and request a sized thumb.
-      image = image.replace(/^http:\/\//i, "https://")
-      if (!/^https:\/\//i.test(image)) image = `https://www.bing.com${image.startsWith("/") ? "" : "/"}${image}`
-      image = `${image}&w=800&h=450&c=14`
-    }
+    if (image) image = `${image}&w=800&h=450&c=14`
     if (!rawTitle || !link) continue
     out.push({
       title: rawTitle,
@@ -214,11 +208,10 @@ function parseBing(xml: string): Article[] {
   return out
 }
 
-async function fetchBing(query: string, lang: string = "en"): Promise<Article[]> {
-  const mkt = lang === "hi" ? "hi-IN" : "en-IN"
+async function fetchBing(query: string): Promise<Article[]> {
   try {
     const res = await fetch(
-      `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&count=50&setmkt=${mkt}&setlang=${lang}`,
+      `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&count=30`,
       { headers: { "User-Agent": UA }, signal: upstreamSignal(), next: { revalidate: 600 } },
     )
     if (!res.ok) return []
@@ -291,89 +284,9 @@ async function fetchGoogle(category: string, lang: string, q: string): Promise<A
   }
 }
 
-// ---------------------------------------------------------------------------
-// OG-image enrichment: pull og:image / twitter:image from the publisher page
-// for articles that arrived without an image. Bounded + cached so it stays fast.
-// ---------------------------------------------------------------------------
-const ogCache = ((globalThis as unknown as { __ogCache?: Map<string, string | null> }).__ogCache ??=
-  new Map<string, string | null>())
-
-function extractOgImage(html: string): string | null {
-  const patterns = [
-    /<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i,
-    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
-  ]
-  for (const re of patterns) {
-    const m = html.match(re)
-    if (m?.[1]) {
-      let url = decodeEntities(m[1]).trim()
-      if (url.startsWith("//")) url = `https:${url}`
-      if (url.startsWith("http://")) url = url.replace(/^http:\/\//i, "https://")
-      if (/^https:\/\//i.test(url)) return url
-    }
-  }
-  return null
-}
-
-async function fetchOgImage(pageUrl: string): Promise<string | null> {
-  // Google News redirect links don't expose og:image — skip them.
-  if (!/^https?:\/\//i.test(pageUrl) || /news\.google\.com/i.test(pageUrl)) return null
-  if (ogCache.has(pageUrl)) return ogCache.get(pageUrl) ?? null
-  try {
-    const res = await fetch(pageUrl, {
-      headers: { "User-Agent": UA },
-      redirect: "follow",
-      signal: AbortSignal.timeout(3500),
-      next: { revalidate: 3600 },
-    })
-    if (!res.ok) {
-      ogCache.set(pageUrl, null)
-      return null
-    }
-    // Only need the <head>; read a bounded chunk to stay fast.
-    const html = (await res.text()).slice(0, 60000)
-    const img = extractOgImage(html)
-    ogCache.set(pageUrl, img)
-    return img
-  } catch {
-    ogCache.set(pageUrl, null)
-    return null
-  }
-}
-
-async function enrichImages(articles: Article[]): Promise<Article[]> {
-  const missing = articles.filter((a) => !a.image)
-  if (missing.length === 0) return articles
-  await Promise.all(
-    missing.map(async (article) => {
-      const img = await fetchOgImage(article.url)
-      if (img) article.image = img
-    }),
-  )
-  return articles
-}
-
-// Bing query per category (fallback with images, both languages)
-function bingQuery(category: string, q: string, lang: string = "en"): string {
+// Bing query per category (English fallback with images)
+function bingQuery(category: string, q: string): string {
   if (q) return q
-  if (lang === "hi") {
-    const hi: Record<string, string> = {
-      all: "भारत ताजा समाचार",
-      general: "भारत ताजा समाचार",
-      world: "विश्व समाचार",
-      nation: "भारत राष्ट्रीय समाचार",
-      politics: "भारत राजनीति समाचार",
-      crime: "अपराध पुलिस समाचार",
-      business: "भारत व्यापार अर्थव्यवस्था",
-      technology: "तकनीक समाचार",
-      sports: "भारत खेल क्रिकेट",
-      entertainment: "बॉलीवुड मनोरंजन",
-      science: "विज्ञान समाचार",
-      health: "स्वास्थ्य समाचार",
-    }
-    return hi[category] ?? `${category} समाचार`
-  }
   const map: Record<string, string> = {
     all: "india top news",
     general: "india top news",
@@ -418,9 +331,8 @@ export async function GET(req: NextRequest) {
     const rssPromise = rssArticles
       ? Promise.resolve(rssArticles)
       : (async () => {
-          // Bing (has images) for both languages + Google (broad coverage)
           const [bing, google] = await Promise.all([
-            fetchBing(bingQuery(category, q, lang), lang),
+            lang === "en" ? fetchBing(bingQuery(category, q)) : Promise.resolve([]),
             fetchGoogle(category, lang, q),
           ])
           const collected: Article[] = []
@@ -431,8 +343,6 @@ export async function GET(req: NextRequest) {
             seen.add(key)
             collected.push(article)
           }
-          // Surface articles that have images first for a richer feed
-          collected.sort((a, b) => (a.image ? 0 : 1) - (b.image ? 0 : 1))
           if (collected.length) {
             setCache(rssKey, { totalArticles: collected.length, articles: collected })
           }
@@ -453,14 +363,10 @@ export async function GET(req: NextRequest) {
       for (const article of rssArticles) {
         if (!seen.has(article.url) && merged.length < PAGE_SIZE) merged.push(article)
       }
-      await enrichImages(merged)
       return { totalArticles: Math.max(gnews.totalArticles, rssArticles.length), articles: merged, endOfFeed: false }
     }
 
-    if (!rssArticles.length) return null
-    const result = paginate(rssArticles, page)
-    await enrichImages(result.articles)
-    return result
+    return rssArticles.length ? paginate(rssArticles, page) : null
   }
 
   let pending = inflight.get(cacheKey)
