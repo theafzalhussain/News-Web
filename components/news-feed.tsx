@@ -113,17 +113,45 @@ export function NewsFeed({ lang, category, query, onFirstPage }: NewsFeedProps) 
         <span className="h-px flex-1 bg-border" aria-hidden="true" />
       </motion.div>
 
-      {/* Initial loading skeleton */}
+      {/* Initial loading skeleton — premium shimmer */}
       {isLoading && (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="animate-pulse overflow-hidden rounded-xl border border-border bg-card">
-              <div className="aspect-[16/9] bg-secondary" />
+            <div
+              key={i}
+              className="overflow-hidden rounded-2xl border border-border bg-card"
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              {/* Shimmer image */}
+              <div className="relative aspect-[16/9] overflow-hidden bg-secondary">
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" />
+              </div>
               <div className="flex flex-col gap-3 p-5">
-                <div className="h-3 w-24 rounded bg-secondary" />
-                <div className="h-5 w-full rounded bg-secondary" />
-                <div className="h-5 w-3/4 rounded bg-secondary" />
-                <div className="h-3 w-full rounded bg-secondary" />
+                <div className="flex items-center gap-2">
+                  <div className="relative h-3 w-24 overflow-hidden rounded bg-secondary">
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{ animationDelay: "0.1s" }} />
+                  </div>
+                  <div className="relative h-3 w-16 overflow-hidden rounded bg-secondary">
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{ animationDelay: "0.2s" }} />
+                  </div>
+                </div>
+                <div className="relative h-5 w-full overflow-hidden rounded bg-secondary">
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{ animationDelay: "0.15s" }} />
+                </div>
+                <div className="relative h-5 w-3/4 overflow-hidden rounded bg-secondary">
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{ animationDelay: "0.2s" }} />
+                </div>
+                <div className="relative h-3 w-full overflow-hidden rounded bg-secondary">
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{ animationDelay: "0.25s" }} />
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <div className="relative h-8 w-24 overflow-hidden rounded-full bg-secondary">
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" />
+                  </div>
+                  <div className="relative h-8 w-20 overflow-hidden rounded-full bg-secondary">
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" />
+                  </div>
+                </div>
               </div>
             </div>
           ))}

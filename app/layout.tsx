@@ -16,6 +16,23 @@ export const metadata: Metadata = {
   description:
     'Premium live news coverage: world, politics, crime, business, technology, sports and more — in English and Hindi.',
   generator: 'v0.app',
+  keywords: ['news', 'breaking news', 'live news', 'world news', 'india news', 'hindi news', 'premium news'],
+  authors: [{ name: 'The Chronicle' }],
+  openGraph: {
+    title: 'The Chronicle — Live Global News',
+    description:
+      'Premium live news coverage: world, politics, crime, business, technology, sports and more — in English and Hindi.',
+    type: 'website',
+    siteName: 'The Chronicle',
+    locale: 'en_US',
+    alternateLocale: 'hi_IN',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'The Chronicle — Live Global News',
+    description:
+      'Premium live news coverage: world, politics, crime, business, technology, sports and more — in English and Hindi.',
+  },
   icons: {
     icon: [
       {

@@ -125,3 +125,44 @@
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.44 0.01 85);
 }
+
+/* Premium shimmer animation for skeleton loaders */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Subtle grain overlay for premium texture */
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0) }
+  10% { transform: translate(-5%, -10%) }
+  20% { transform: translate(-15%, 5%) }
+  30% { transform: translate(7%, -25%) }
+  40% { transform: translate(-5%, 25%) }
+  50% { transform: translate(-15%, 10%) }
+  60% { transform: translate(15%, 0%) }
+  70% { transform: translate(0%, 15%) }
+  80% { transform: translate(3%, 35%) }
+  90% { transform: translate(-10%, 10%) }
+}
+
+/* Premium focus ring style */
+*:focus-visible {
+  outline: 2px solid oklch(0.8 0.12 85);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth link transitions */
+a {
+  transition: color 0.2s ease;
+}
+
+/* Premium image loading placeholder */
+img {
+  background-color: oklch(0.22 0.008 80);
+}
